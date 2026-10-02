@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CampusSwap</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8eef3;--card:#fff;--ink:#14263a;--mute:#5d6f80;--line:#cbd6df;--pin:#ffcf33;--ok:#1f7a4d;--bad:#b3362b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a26;--card:#182636;--ink:#eaf1f7;--mute:#92a5b6;--line:#2c4057}}
+:root[data-theme="dark"]{--bg:#0f1a26;--card:#182636;--ink:#eaf1f7;--mute:#92a5b6;--line:#2c4057}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Figtree,system-ui,sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque',Georgia,sans-serif;margin:0}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;background:var(--ink);color:#fff;flex-wrap:wrap}
+header h1{font-size:22px}header h1 span{background:var(--pin);color:#14263a;padding:0 6px;border-radius:4px}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+button,select,input,textarea{font:inherit;color:inherit}
+nav button{background:none;border:1px solid #ffffff55;color:#fff;border-radius:20px;padding:4px 12px;cursor:pointer}
+nav button.on{background:var(--pin);color:#14263a;border-color:var(--pin)}
+main{max-width:900px;margin:0 auto;padding:16px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.bar input{flex:2 1 180px}.bar select{flex:1 1 110px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;position:relative;display:flex;flex-direction:column;gap:6px}
+.card.borrow{border-top:5px solid var(--pin)}.card.sell{border-top:5px solid var(--ink)}
+.tag{font-size:13px;color:var(--mute)}.price{font-weight:600}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}
+.btn.alt{background:none;color:var(--ink);border:1px solid var(--ink)}.btn.bad{background:var(--bad)}.btn.ok{background:var(--ok)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,nav button:focus-visible{outline:3px solid var(--pin);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+form.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:10px;max-width:440px}
+label{display:grid;gap:3px;font-weight:600;font-size:14px}
+.st{display:inline-block;border-radius:12px;padding:0 10px;font-size:13px;font-weight:600;background:var(--line)}
+.st.Pending{background:var(--pin);color:#14263a}.st.Approved{background:var(--ok);color:#fff}.st.Declined{background:var(--bad);color:#fff}
+.msg{padding:8px 12px;border-radius:8px;background:var(--pin);color:#14263a;margin-bottom:12px;font-weight:600}
+.empty{color:var(--mute);padding:24px 0}h2{margin:20px 0 10px}
+</style></head><body>
+<header><h1>Campus<span>Swap</span></h1><nav id="nav"></nav></header>
+<main id="app"></main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CATS=['Textbooks','Lab equipment','Electronics','Stationery','Other'];
+let me=null,view='browse',msg='',detail=null,q='',cat='',typ='';
+async function api(p,method='GET',body){
+ const r=await fetch('/api'+p,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(d.error||'Something went wrong. Try again.');
+ return d}
+const flash=m=>{msg=m};
+async function go(v,d){view=v;detail=d||null;await render()}
+async function act(fn,ok,to){try{await fn();flash(ok);await go(to||view)}catch(e){flash(e.message);await render()}}
+async function render(){
+ const tabs=[['browse','Browse'],...(me?[['list','Add item'],['dash','My dashboard']]:[]),...(me&&me.role=='admin'?[['admin','Admin']]:[]),...(me?[['out','Log out']]:[['login','Log in'],['signup','Sign up']])];
+ $('#nav').innerHTML=tabs.map(([k,l])=>`<button class="${view==k?'on':''}" onclick="${k=='out'?'logout()':`go('${k}')`}">${l}</button>`).join('');
+ let h='';try{h=await V[view]()}catch(e){msg=e.message}
+ const m=msg?`<div class="msg" role="status">${esc(msg)}</div>`:'';msg='';
+ $('#app').innerHTML=m+h;window.scrollTo(0,0)}
+const price=i=>i.type=='sell'?'$'+i.price:(i.price?'$'+i.price+' per week':'Free to borrow');
+function card(i){return `<div class="card ${i.type}"><h3>${esc(i.title)}</h3><div class="tag">${esc(i.category)} · by ${esc(i.owner)}</div><div class="price">${price(i)}</div>
+ <span class="st ${i.status}">${i.status}</span><div class="row"><button class="btn alt" onclick="go('item',${i.id})">View details</button></div></div>`}
+async function grid(){
+ const p=new URLSearchParams({q,category:cat,type:typ});
+ const items=await api('/items?'+p);
+ return items.map(card).join('')||'<p class="empty">No items match. Try a different search or list your own.</p>'}
+async function refreshGrid(){try{$('#grid').innerHTML=await grid()}catch(e){}}
+async function browse(){
+ return `<div class="bar"><input placeholder="Search books, calculators, kits…" value="${esc(q)}" oninput="q=this.value;refreshGrid()" aria-label="Search">
+ <select onchange="cat=this.value;refreshGrid()" aria-label="Category"><option value="">All categories</option>${CATS.map(c=>`<option ${cat==c?'selected':''}>${c}</option>`).join('')}</select>
+ <select onchange="typ=this.value;refreshGrid()" aria-label="Type"><option value="">Buy or borrow</option><option value="sell" ${typ=='sell'?'selected':''}>For sale</option><option value="borrow" ${typ=='borrow'?'selected':''}>To borrow</option></select></div>
+ <div class="grid" id="grid">${await grid()}</div>`}
+async function item(){const i=await api('/items/'+detail);
+ const own=me&&me.id==i.owner_id,can=me&&!own&&i.status=='Available';
+ return `<div class="card ${i.type}" style="max-width:520px"><h2 style="margin:0">${esc(i.title)}</h2><div class="tag">${esc(i.category)} · listed by ${esc(i.owner)}</div>
+ <p>${esc(i.description)}</p><div class="price">${price(i)}</div><span class="st ${i.status}">${i.status}</span>
+ <div class="row">${can?`<button class="btn" onclick="request(${i.id})">${i.type=='sell'?'Request to buy':'Request to borrow'}</button>`:''}
+ ${!me?'<span class="tag">Log in to send a request.</span>':''}${own?'<span class="tag">This is your listing.</span>':''}
+ <button class="btn alt" onclick="go('browse')">Back to browse</button></div></div>`}
+const request=id=>act(()=>api(`/items/${id}/request`,'POST'),'Request sent. The owner will review it.','dash');
+async function list(){return `<form class="box" onsubmit="addItem(event)"><h2 style="margin:0">List an item</h2>
+ <label>Title<input name="title" required maxlength="60"></label>
+ <label>Description<textarea name="description" rows="3" maxlength="200"></textarea></label>
+ <label>Category<select name="category">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></label>
+ <label>Listing type<select name="type"><option value="sell">Sell</option><option value="borrow">Lend</option></select></label>
+ <label>Price in $ (per week if lending, 0 for free)<input name="price" type="number" min="0" value="0" required></label>
+ <button class="btn">Publish listing</button></form>`}
+function addItem(e){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));act(()=>api('/items','POST',f),'Listing published.','dash')}
+function delItem(id){if(confirm('Delete this listing?'))act(()=>api('/items/'+id,'DELETE'),'Listing deleted.')}
+const setReq=(id,s)=>act(()=>api('/transactions/'+id,'PATCH',{status:s}),'Request marked '+s.toLowerCase()+'.');
+async function dash(){const d=await api('/dashboard');
+ const own=d.listings.map(i=>`<div class="card ${i.type}"><h3>${esc(i.title)}</h3><span class="st ${i.status}">${i.status}</span><div class="row"><button class="btn bad" onclick="delItem(${i.id})">Delete</button></div></div>`).join('');
+ const inc=d.incoming.map(r=>`<div class="card"><h3>${esc(r.title)}</h3><div class="tag">From ${esc(r.borrower)} on ${r.created}</div><span class="st ${r.status}">${r.status}</span><div class="row">
+ ${r.status=='Pending'?`<button class="btn ok" onclick="setReq(${r.id},'Approved')">Approve</button><button class="btn bad" onclick="setReq(${r.id},'Declined')">Decline</button>`:''}
+ ${r.status=='Approved'?`<button class="btn" onclick="setReq(${r.id},'Returned')">Mark returned</button>`:''}</div></div>`).join('');
+ const out=d.outgoing.map(r=>`<div class="card"><h3>${esc(r.title)}</h3><div class="tag">Sent ${r.created}</div><span class="st ${r.status}">${r.status}</span></div>`).join('');
+ return `<h2>My listings</h2><div class="grid">${own||'<p class="empty">Nothing listed yet. Use Add item to share something.</p>'}</div>
+ <h2>Requests for my items</h2><div class="grid">${inc||'<p class="empty">No requests yet.</p>'}</div>
+ <h2>My requests</h2><div class="grid">${out||'<p class="empty">You have not requested anything. Browse to find items.</p>'}</div>`}
+async function admin(){const [u,i]=await Promise.all([api('/users'),api('/items')]);
+ return `<h2>All users (${u.length})</h2><div class="grid">${u.map(x=>`<div class="card"><h3>${esc(x.name)}</h3><div class="tag">${esc(x.email)} · ${x.role}</div></div>`).join('')}</div>
+ <h2>All listings (${i.length})</h2><div class="grid">${i.map(x=>`<div class="card"><h3>${esc(x.title)}</h3><div class="tag">by ${esc(x.owner)} · ${x.status}</div><div class="row"><button class="btn bad" onclick="delItem(${x.id})">Remove</button></div></div>`).join('')}</div>`}
+async function login(){return `<form class="box" onsubmit="doAuth(event,'login')"><h2 style="margin:0">Log in</h2>
+ <label>Campus email<input name="email" type="email" required></label><label>Password<input name="password" type="password" required></label><button class="btn">Log in</button></form>`}
+async function signup(){return `<form class="box" onsubmit="doAuth(event,'register')"><h2 style="margin:0">Create account</h2>
+ <label>Full name<input name="name" required></label><label>Campus email (.edu)<input name="email" type="email" required></label>
+ <label>Password (6+ characters)<input name="password" type="password" minlength="6" required></label><button class="btn">Sign up</button></form>`}
+function doAuth(e,kind){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+ act(async()=>{await api('/'+kind,'POST',f);me=await api('/me')},kind=='login'?'Welcome back.':'Account created.','browse')}
+function logout(){act(async()=>{await api('/logout','POST');me=null},'Logged out.','browse')}
+const V={browse,list,dash,admin,login,signup,item};
+(async()=>{try{me=await api('/me')}catch(e){}await render()})();
+</script></body></html>
